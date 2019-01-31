@@ -9,7 +9,7 @@
 import UIKit
 import RealmSwift
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: SwipeTableViewController {
     
     var toDoItems: Results<Item>?
     let realm = try! Realm()
@@ -33,7 +33,12 @@ class TodoListViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
+        
+        // To make cells not highlight when they are selected
+        cell.selectionStyle = UITableViewCell.SelectionStyle.none
+        
+        cell.textLabel?.numberOfLines = 0
         
         if let item = toDoItems?[indexPath.row] {
             
@@ -41,6 +46,7 @@ class TodoListViewController: UITableViewController {
             
             //Ternary operator ==>
             // value = condition ? valueIfTrue : valueIfFalse
+            
             cell.accessoryType = item.done ? .checkmark : .none
         } else {
             cell.textLabel?.text = "No Items Added"
@@ -48,6 +54,7 @@ class TodoListViewController: UITableViewController {
         
         return cell
     }
+    
     
     //MARK - TableView Delegate Methods
     
@@ -73,8 +80,14 @@ class TodoListViewController: UITableViewController {
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
         
         var textField = UITextField()
-        
+                
         let alert = UIAlertController(title: "Add New Todoey Item", message: "", preferredStyle: .alert)
+        
+        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { (cancel) in
+            print("Cancel button tapped")
+        }
+        
+        alert.addAction(cancelAction)
         
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             //What will happen once the user clicks the Add Item button on the UIAlert
@@ -95,51 +108,67 @@ class TodoListViewController: UITableViewController {
             self.tableView.reloadData()
             
         }
+        
+        alert.addTextField { (alertTextField) in
+            alertTextField.placeholder = "Create new item"
+            textField = alertTextField
+        }
+        
+        alert.addAction(action)
+        
+        present(alert, animated: true, completion: nil)
+        
+    }
+    
+    //MARK - Model Manipulation Methods
+    
+    func loadItems() {
+        
+        toDoItems = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
+        
+        tableView.reloadData()
+    }
+    
+    // MARK: - Delete Data From Swipe
+    
+    override func updateModel(at indexPath: IndexPath) {
+        
+        if let itemForDeletion = self.toDoItems?[indexPath.row] {
             
-            alert.addTextField { (alertTextField) in
-                alertTextField.placeholder = "Create new item"
-                textField = alertTextField
+            do {
+                try realm.write {
+                    self.realm.delete(itemForDeletion)
+                }
+            } catch {
+                print("Error deleting item, \(error)")
             }
-            
-            alert.addAction(action)
-            
-            present(alert, animated: true, completion: nil)
-            
         }
-        
-        //MARK - Model Manipulation Methods
-        
-        func loadItems() {
-            
-            toDoItems = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
-            
-            tableView.reloadData()
-        }
-        
-        
+    }
+    
+    
 }
 
 //MARK: - Search bar methods
 
 extension TodoListViewController: UISearchBarDelegate {
-
+    
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         
         toDoItems = toDoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "dateCreated", ascending: true)
         
         tableView.reloadData()
-
+        
     }
-
+    
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         if searchBar.text?.count == 0 {
             loadItems()
-
+            
             DispatchQueue.main.async {
                 searchBar.resignFirstResponder()
             }
         }
     }
-
+    
 }
 
